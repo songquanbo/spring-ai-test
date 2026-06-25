@@ -26,8 +26,8 @@ cd frontend && npm run dev
 
 | Tool | Source | Notes |
 |------|--------|-------|
-| `readFile`, `writeFile`, `listDirectory`, `findFiles`, `deleteFile`, `confirmOperation` | `ProjectCodeTool` | Paths relative to workspace; write/delete requires `write-enabled=true`; `deleteFile` returns deleted file list |
-| `executeCommand` | `ProjectCodeTool` | **Only** `mvn compile`, `mvn test`, `mvn clean` — anything else rejected |
+| `readFile`, `writeFile`, `listDirectory`, `findFiles`, `deleteFile`, `confirmOperation`, `createSnapshot`, `undoChanges` | `ProjectCodeTool` | Paths relative to workspace; write/delete requires `write-enabled=true`; `deleteFile` returns deleted file list |
+| `executeCommand` | `ProjectCodeTool` | Maven: `mvn compile`, `mvn test`, `mvn clean` — Git: `git status`, `git diff`, `git checkout`, `git log`, `git stash`, `git add`, `git reset`, `git rev-parse`, `git branch`, `git pull --ff-only` |
 | `webSearch` | `WebSearchTool` | Defaults to Baidu; requires `agent.web-search.enabled=true` |
 | `listSkills`, `loadSkill` | `SkillTool` | Skills loaded from `<workspace>/skills/<name>/SKILL.md` |
 

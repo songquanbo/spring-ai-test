@@ -38,10 +38,20 @@ public class ProjectCodeTool {
     }
 
     // 允许执行的命令白名单（可配置，但保持默认）
-    private static final Set<String> ALLOWED_COMMANDS = Set.of(
+    private static final List<String> ALLOWED_COMMAND_PREFIXES = List.of(
             "mvn compile",
             "mvn test",
-            "mvn clean"
+            "mvn clean",
+            "git status",
+            "git diff",
+            "git checkout -- ",
+            "git log",
+            "git stash",
+            "git add ",
+            "git reset ",
+            "git rev-parse",
+            "git branch",
+            "git pull --ff-only"
     );
 
     // ----------------------------------- 公共工具方法 -----------------------------------
@@ -284,12 +294,13 @@ public class ProjectCodeTool {
      * 执行受信任的构建/测试命令（仅当 writeEnabled 为 true）。
      */
     @Tool(description = """
-            在项目根目录执行受信任的构建/测试命令。
-            仅支持：mvn compile, mvn test, mvn clean。
+            在项目根目录执行受信任的命令。
+            支持 Maven：mvn compile, mvn test, mvn clean
+            支持 Git：git status, git diff, git checkout, git log, git stash, git add, git reset, git rev-parse, git branch, git pull --ff-only
             返回结构为 JSON，便于程序解析。
             """)
     public String executeCommand(
-            @ToolParam(description = "允许的命令：mvn compile | mvn test | mvn clean") String command
+            @ToolParam(description = "允许的 Maven/Git 命令") String command
     ) {
         if (!properties.isWriteEnabled()) {
             return errorResponse("命令执行已被禁用");
@@ -305,8 +316,15 @@ public class ProjectCodeTool {
             return errorResponse(permError);
         }
 
-        // 白名单校验（严格匹配）
-        if (!ALLOWED_COMMANDS.contains(command)) {
+        // 白名单校验（前缀匹配）
+        boolean allowed = false;
+        for (String prefix : ALLOWED_COMMAND_PREFIXES) {
+            if (command.startsWith(prefix)) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed) {
             return errorResponse("不支持的命令：" + command);
         }
 
@@ -430,5 +448,53 @@ public class ProjectCodeTool {
         permissionEvaluator.approve(toolName, normalizedArg);
         logger.info("操作已确认：{} ({})", toolName, normalizedArg);
         return "操作已确认：" + toolName + " (" + normalizedArg + ")，现在可以安全执行了。";
+    }
+
+    @Tool(description = "创建当前工作区快照（git stash），保存所有未提交的修改。在修改代码前调用，以便后续可撤销。")
+    public String createSnapshot(
+            @ToolParam(description = "快照描述，如 'before fixing bug'") String description
+    ) {
+        try {
+            String desc = (description == null || description.isBlank()) ? "snapshot" : description;
+            return runGitCommand("git stash push -m \"snapshot: " + desc + "\"");
+        } catch (Exception e) {
+            logger.error("创建快照失败", e);
+            return "错误：创建快照失败 - " + e.getMessage();
+        }
+    }
+
+    @Tool(description = "撤销指定文件的修改，恢复到上次提交的状态（git checkout）。配合 createSnapshot 使用。")
+    public String undoChanges(
+            @ToolParam(description = "文件相对路径，如 src/main/java/App.java。传 . 表示撤销所有更改") String relativePath
+    ) {
+        try {
+            String path = (relativePath == null || relativePath.isBlank()) ? "." : relativePath;
+            return runGitCommand("git checkout -- " + path);
+        } catch (Exception e) {
+            logger.error("撤销更改失败", e);
+            return "错误：撤销更改失败 - " + e.getMessage();
+        }
+    }
+
+    private String runGitCommand(String fullCommand) throws IOException, InterruptedException {
+        Path workDir = getWorkspacePath();
+        List<String> cmdList = new ArrayList<>(List.of("git"));
+        String[] parts = fullCommand.split(" ");
+        cmdList.addAll(Arrays.asList(parts).subList(1, parts.length));
+        ProcessBuilder pb = new ProcessBuilder(cmdList);
+        pb.directory(workDir.toFile());
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        boolean finished = process.waitFor(10, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            return "命令执行超时";
+        }
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.exitValue();
+        if (exitCode != 0) {
+            return "命令失败（退出码 " + exitCode + "）：" + output;
+        }
+        return output.trim();
     }
 }

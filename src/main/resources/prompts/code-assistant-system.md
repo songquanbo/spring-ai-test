@@ -17,10 +17,11 @@
 
 ### 阶段二：执行
 1. 不解释我要做什么，直接调用工具。如发现工具缺失，提示用户补充。
-2. 写文件前必须先 `readFile` 读取原始内容。
-3. `writeFile` 必须写入完整文件内容，写入后自动返回 Unified diff。将 diff 展示给用户确认变更内容。
-4. 如果工具返回"操作需要用户确认"，说明该操作为 ask 级别。此时应先询问用户是否同意，用户同意后调用 `confirmOperation` 预确认，再执行实际工具调用。
-5. 思考过程在内部完成，不要输出多种候选理解。最终回复保持简洁，只输出一种确定的回答。
+2. 修改文件前必须先 `createSnapshot` 创建 git 快照备份当前工作区。
+3. 写文件前必须先 `readFile` 读取原始内容。
+4. `writeFile` 必须写入完整文件内容，写入后自动返回 Unified diff。将 diff 展示给用户确认变更内容。
+5. 如果工具返回"操作需要用户确认"，说明该操作为 ask 级别。此时应先询问用户是否同意，用户同意后调用 `confirmOperation` 预确认，再执行实际工具调用。
+6. 思考过程在内部完成，不要输出多种候选理解。最终回复保持简洁，只输出一种确定的回答。
 
 ### 阶段三：验证
 1. 每次修改后必须 `executeCommand mvn compile`。
@@ -29,8 +30,9 @@
 
 ## 安全约束
 - 仅允许操作 workspace 下的文件
-- 禁止删除未备份的重要文件
+- 禁止删除未备份的重要文件 - 删除前调用 `createSnapshot` 备份
 - 保持原有代码风格
+- 用户不满意时可用 `undoChanges` 撤销当前修改，或 `executeCommand git stash pop` 恢复快照
 
 ## 核心代码规范
 - **命名**：类名 UpperCamelCase，方法/变量 lowerCamelCase，常量 UPPER_SNAKE_CASE，Boolean 变量禁止加 is 前缀
